@@ -1,0 +1,14 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "entries": [
+      {"threshold": 0, "model": {"type": "minecraft:model", "model": "playingcards:item/card_covered_blue"}},
+      {"threshold": 1, "model": {"type": "minecraft:model", "model": "playingcards:item/card_covered_red"}},
+      {"threshold": 2, "model": {"type": "minecraft:model", "model": "playingcards:item/card_covered_black"}},
+      {"threshold": 3, "model": {"type": "minecraft:model", "model": "playingcards:item/card_covered_pig"}}
+    ],
+    "fallback": {"type": "minecraft:model", "model": "playingcards:item/card_covered_blue"}
+  }
+}

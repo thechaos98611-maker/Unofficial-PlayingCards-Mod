@@ -13,7 +13,7 @@
     }
   },
   "result": {
-    "item": "playingcards:poker_table",
+    "id": "playingcards:poker_table",
     "count": 4
   }
 }

@@ -18,24 +18,28 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.component.TooltipDisplay;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
+import net.minecraft.world.entity.EquipmentSlot;
 
 public class ItemCardCovered extends ItemBase {
 
-    public ItemCardCovered() {
-        super(new Properties().stacksTo(1));
+    public ItemCardCovered(Item.Properties properties) {
+        super(properties.stacksTo(1));
     }
 
     @Override
-    public void appendHoverText(ItemStack pStack, @Nullable Level pLevel, List<Component> pTooltipComponents, TooltipFlag pIsAdvanced) {
+    public void appendHoverText(ItemStack pStack, Item.TooltipContext pContext, TooltipDisplay pDisplay, Consumer<Component> pTooltip, TooltipFlag pIsAdvanced) {
         CompoundTag nbt = ItemHelper.getNBT(pStack);
-        pTooltipComponents.add(Component.translatable("lore.cover").append(" ").withStyle(ChatFormatting.GRAY).append(Component.translatable(CardHelper.CARD_SKIN_NAMES[nbt.getByte("SkinID")]).withStyle(ChatFormatting.AQUA)));
+        pTooltip.accept(Component.translatable("lore.cover").append(" ").withStyle(ChatFormatting.GRAY).append(Component.translatable(CardHelper.CARD_SKIN_NAMES[ItemHelper.getByte(nbt, "SkinID")]).withStyle(ChatFormatting.AQUA)));
     }
 
     public void flipCard(ItemStack heldItem, LivingEntity entity) {
@@ -46,14 +50,22 @@ public class ItemCardCovered extends ItemBase {
                 CompoundTag heldNBT = ItemHelper.getNBT(heldItem);
 
                 Item nextCard = InitItems.CARD.get();
-                if (!heldNBT.getBoolean("Covered")) nextCard = InitItems.CARD_COVERED.get();
+                if (!ItemHelper.getBoolean(heldNBT, "Covered")) nextCard = InitItems.CARD_COVERED.get();
 
                 ItemStack newCard = new ItemStack(nextCard);
-                newCard.setDamageValue(heldItem.getDamageValue());
+                int cardId = ItemHelper.getCardId(heldItem);
+                newCard.setDamageValue(cardId);
 
-                ItemHelper.getNBT(newCard).putUUID("UUID", heldNBT.getUUID("UUID"));
-                ItemHelper.getNBT(newCard).putByte("SkinID", heldNBT.getByte("SkinID"));
-                ItemHelper.getNBT(newCard).putBoolean("Covered", !heldNBT.getBoolean("Covered"));
+                ItemHelper.updateNBT(newCard, nbt -> {
+                    ItemHelper.putUUID(nbt, "UUID", ItemHelper.getUUID(heldNBT, "UUID"));
+                    nbt.putByte("SkinID", ItemHelper.getByte(heldNBT, "SkinID"));
+                    nbt.putBoolean("Covered", !ItemHelper.getBoolean(heldNBT, "Covered"));
+                    nbt.putInt("CardID", cardId);
+                });
+                int modelIndex = newCard.getItem() == InitItems.CARD_COVERED.get()
+                        ? ItemHelper.getByte(heldNBT, "SkinID")
+                        : cardId;
+                ItemHelper.setModelIndex(newCard, modelIndex);
 
                 player.setItemInHand(InteractionHand.MAIN_HAND, newCard);
             }
@@ -61,7 +73,7 @@ public class ItemCardCovered extends ItemBase {
     }
 
     @Override
-    public void inventoryTick(ItemStack pStack, Level pLevel, Entity pEntity, int pSlotId, boolean pIsSelected) {
+    public void inventoryTick(ItemStack pStack, ServerLevel pLevel, Entity pEntity, EquipmentSlot pSlot) {
         if (pLevel.getGameTime() % 60 == 0) {
 
             if (pEntity instanceof Player player) {
@@ -69,8 +81,8 @@ public class ItemCardCovered extends ItemBase {
 
                 CompoundTag nbt = ItemHelper.getNBT(pStack);
 
-                if (nbt.hasUUID("UUID")) {
-                    UUID id = ItemHelper.getNBT(pStack).getUUID("UUID");
+                if (ItemHelper.hasUUID(nbt, "UUID")) {
+                    UUID id = ItemHelper.getUUID(nbt, "UUID");
 
                     if (id.getLeastSignificantBits() == 0) {
                         return;
@@ -89,7 +101,7 @@ public class ItemCardCovered extends ItemBase {
                     }
 
                     if (!found) {
-                        player.getInventory().getItem(pSlotId).shrink(1);
+                        pStack.shrink(1);
                     }
                 }
             }
@@ -109,14 +121,14 @@ public class ItemCardCovered extends ItemBase {
 
                 CompoundTag nbt = ItemHelper.getNBT(pContext.getItemInHand());
 
-                UUID deckID = nbt.getUUID("UUID");
+                UUID deckID = ItemHelper.getUUID(nbt, "UUID");
 
                 for (EntityCardDeck closeDeck : closeDecks) {
 
                     if (closeDeck.getUUID().equals(deckID)) {
 
                         Level world = pContext.getLevel();
-                        EntityCard cardDeck = new EntityCard(world, pContext.getClickLocation(), pContext.getRotation(), nbt.getByte("SkinID"), deckID, nbt.getBoolean("Covered"), (byte) pContext.getItemInHand().getDamageValue());
+                        EntityCard cardDeck = new EntityCard(world, pContext.getClickLocation(), pContext.getRotation(), ItemHelper.getByte(nbt, "SkinID"), deckID, ItemHelper.getBoolean(nbt, "Covered"), (byte) ItemHelper.getCardId(pContext.getItemInHand()));
                         world.addFreshEntity(cardDeck);
                         pContext.getItemInHand().shrink(1);
 
@@ -127,5 +139,13 @@ public class ItemCardCovered extends ItemBase {
         }
 
         return InteractionResult.PASS;
+    }
+
+    @Override
+    public InteractionResult use(Level level, Player player, InteractionHand hand) {
+        if (hand == InteractionHand.MAIN_HAND && !level.isClientSide()) {
+            flipCard(player.getMainHandItem(), player);
+        }
+        return InteractionResult.SUCCESS;
     }
 }

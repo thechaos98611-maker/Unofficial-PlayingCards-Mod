@@ -2,15 +2,16 @@ package com.ombremoon.playingcards.entity;
 
 import com.ombremoon.playingcards.init.InitEntityTypes;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.network.NetworkHooks;
 
 import java.util.List;
 
@@ -34,7 +35,7 @@ public class EntitySeat extends Entity {
 
     public static void createSeat(Level world, BlockPos pos, Player player) {
 
-        if (!world.isClientSide) {
+        if (!world.isClientSide()) {
 
             List<EntitySeat> seats = world.getEntitiesOfClass(EntitySeat.class, new AABB(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1));
 
@@ -48,7 +49,7 @@ public class EntitySeat extends Entity {
     }
 
     @Override
-    protected void defineSynchedData() {
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
 
     }
 
@@ -60,7 +61,7 @@ public class EntitySeat extends Entity {
             sourceBlock = this.blockPosition();
         }
 
-        if (!level().isClientSide) {
+        if (!level().isClientSide()) {
 
             if (getPassengers().isEmpty() || this.level().getBlockState(sourceBlock).isAir()) {
                 discard();
@@ -69,22 +70,24 @@ public class EntitySeat extends Entity {
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag compoundTag) {
-
+    protected void readAdditionalSaveData(ValueInput input) {
+        int x = input.getIntOr("SourceX", blockPosition().getX());
+        int y = input.getIntOr("SourceY", blockPosition().getY());
+        int z = input.getIntOr("SourceZ", blockPosition().getZ());
+        sourceBlock = new BlockPos(x, y, z);
     }
 
     @Override
-    protected void addAdditionalSaveData(CompoundTag compoundTag) {
-
+    protected void addAdditionalSaveData(ValueOutput output) {
+        if (sourceBlock != null) {
+            output.putInt("SourceX", sourceBlock.getX());
+            output.putInt("SourceY", sourceBlock.getY());
+            output.putInt("SourceZ", sourceBlock.getZ());
+        }
     }
 
     @Override
-    public double getPassengersRidingOffset() {
-        return 0.0D;
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        return false;
     }
 }

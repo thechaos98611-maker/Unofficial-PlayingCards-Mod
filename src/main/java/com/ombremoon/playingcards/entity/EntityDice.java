@@ -2,17 +2,18 @@ package com.ombremoon.playingcards.entity;
 
 import com.ombremoon.playingcards.init.InitEntityTypes;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 public class EntityDice extends Entity {
@@ -24,7 +25,8 @@ public class EntityDice extends Entity {
     public EntityDice(Level world, Vec3 position, float rotation) {
         this(InitEntityTypes.DICE.get(), world);
         setPos(position.x, position.y, position.z);
-        setRot(rotation, 0);
+        setYRot(rotation);
+        setXRot(0);
 
         float sin = Mth.sin(this.getYRot() * 0.017453292F - 11);
         float cos = Mth.cos(this.getYRot() * 0.017453292F - 11);
@@ -46,7 +48,7 @@ public class EntityDice extends Entity {
             this.setDeltaMovement(this.getDeltaMovement().add(0.0D, -0.04D, 0.0D));
         }
 
-        if (this.level().isClientSide) {
+        if (this.level().isClientSide()) {
             this.noPhysics = false;
         }
 
@@ -66,10 +68,10 @@ public class EntityDice extends Entity {
             }
         }
 
-        if (!this.level().isClientSide) {
+        if (!this.level().isClientSide()) {
             double d0 = this.getDeltaMovement().subtract(motion).lengthSqr();
             if (d0 > 0.01D) {
-                this.hasImpulse = true;
+                this.needsSync = true;
             }
         }
     }
@@ -90,22 +92,22 @@ public class EntityDice extends Entity {
     }
 
     @Override
-    protected void addAdditionalSaveData(CompoundTag compoundTag) {
+    protected void addAdditionalSaveData(ValueOutput output) {
 
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag compoundTag) {
+    protected void readAdditionalSaveData(ValueInput input) {
 
     }
 
     @Override
-    protected void defineSynchedData() {
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
 
     }
 
     @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        return false;
     }
 }

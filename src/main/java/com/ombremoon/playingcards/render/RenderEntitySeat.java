@@ -2,23 +2,25 @@ package com.ombremoon.playingcards.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.ombremoon.playingcards.entity.EntitySeat;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 
-public class RenderEntitySeat extends EntityRenderer<EntitySeat> {
+public class RenderEntitySeat extends EntityRenderer<EntitySeat, EntityRenderState> {
 
-    public RenderEntitySeat(EntityRendererProvider.Context pContext) {
-        super(pContext);
+    public RenderEntitySeat(EntityRendererProvider.Context context) {
+        super(context);
     }
 
     @Override
-    public void render(EntitySeat pEntity, float pEntityYaw, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBuffer, int pPackedLight) {
+    public EntityRenderState createRenderState() {
+        return new EntityRenderState();
     }
 
     @Override
-    public ResourceLocation getTextureLocation(EntitySeat pEntity) {
-        return null;
+    public void submit(EntityRenderState state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState cameraState) {
+        super.submit(state, poseStack, collector, cameraState);
     }
 }

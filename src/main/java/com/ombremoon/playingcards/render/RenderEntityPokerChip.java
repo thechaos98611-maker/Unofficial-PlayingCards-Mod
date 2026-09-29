@@ -5,47 +5,68 @@ import com.mojang.math.Axis;
 import com.ombremoon.playingcards.entity.EntityPokerChip;
 import com.ombremoon.playingcards.item.ItemPokerChip;
 import com.ombremoon.playingcards.util.CardHelper;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.item.ItemModelResolver;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
-public class RenderEntityPokerChip extends EntityRenderer<EntityPokerChip> {
+public class RenderEntityPokerChip extends EntityRenderer<EntityPokerChip, RenderEntityPokerChip.State> {
 
-    public RenderEntityPokerChip(EntityRendererProvider.Context pContext) {
-        super(pContext);
+    private final ItemModelResolver itemModelResolver;
+
+    public RenderEntityPokerChip(EntityRendererProvider.Context context) {
+        super(context);
+        this.itemModelResolver = Minecraft.getInstance().getItemModelResolver();
     }
 
     @Override
-    public void render(EntityPokerChip pEntity, float pEntityYaw, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBuffer, int pPackedLight) {
-        super.render(pEntity, pEntityYaw, pPartialTick, pPoseStack, pBuffer, pPackedLight);
+    public State createRenderState() {
+        return new State();
+    }
 
-        pPoseStack.pushPose();
-        pPoseStack.translate(0, 0.01D, 0.07D);
-        pPoseStack.scale(0.5F, 0.5F, 0.5F);
+    @Override
+    public void extractRenderState(EntityPokerChip entity, State state, float partialTick) {
+        super.extractRenderState(entity, state, partialTick);
+        state.chips.clear();
+        for (int i = 0; i < entity.getStackAmount(); i++) {
+            ItemStackRenderState chipState = new ItemStackRenderState();
+            ItemStack chip = new ItemStack(ItemPokerChip.getPokerChip(entity.getIDAt(i)));
+            itemModelResolver.updateForNonLiving(chipState, chip, ItemDisplayContext.GROUND, entity);
+            state.chips.add(chipState);
+        }
+    }
 
-        for (byte i = 0; i < pEntity.getStackAmount(); i++) {
-            pPoseStack.pushPose();
+    @Override
+    public void submit(State state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState cameraState) {
+        super.submit(state, poseStack, collector, cameraState);
+        poseStack.pushPose();
+        poseStack.translate(0, 0.01D, 0.07D);
+        poseStack.scale(0.5F, 0.5F, 0.5F);
 
-            Random randomX = new Random(i * 200000);
-            Random randomY = new Random(i * 100000);
-
-            pPoseStack.translate(randomX.nextDouble() * 0.05D - 0.025D, 0, randomY.nextDouble() * 0.05D - 0.025D);
-            pPoseStack.mulPose(Axis.XN.rotationDegrees(90));
-
-            CardHelper.renderItem(new ItemStack(ItemPokerChip.getPokerChip(pEntity.getIDAt(i))), pEntity.level(), 0, 0,i * 0.032D, pPoseStack, pBuffer, pPackedLight);
-
-            pPoseStack.popPose();
+        for (int i = 0; i < state.chips.size(); i++) {
+            poseStack.pushPose();
+            Random randomX = new Random(i * 200000L);
+            Random randomY = new Random(i * 100000L);
+            poseStack.translate(randomX.nextDouble() * 0.05D - 0.025D, 0, randomY.nextDouble() * 0.05D - 0.025D);
+            poseStack.mulPose(Axis.XN.rotationDegrees(90));
+            CardHelper.renderItem(state.chips.get(i), 0, 0, i * 0.032D, poseStack, collector, state.lightCoords, i);
+            poseStack.popPose();
         }
 
-        pPoseStack.popPose();
+        poseStack.popPose();
     }
 
-    @Override
-    public ResourceLocation getTextureLocation(EntityPokerChip pEntity) {
-        return null;
+    public static class State extends EntityRenderState {
+        private final List<ItemStackRenderState> chips = new ArrayList<>();
     }
 }

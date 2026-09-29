@@ -1,41 +1,28 @@
 package com.ombremoon.playingcards.event;
 
 import com.ombremoon.playingcards.item.ItemCardCovered;
-import com.ombremoon.playingcards.network.ModNetworking;
+import com.ombremoon.playingcards.network.PacketInteractCard;
+import com.ombremoon.playingcards.main.PCReference;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import net.neoforged.neoforge.client.event.InputEvent;
+import org.lwjgl.glfw.GLFW;
 
-public class CardInteractEvent {
+@EventBusSubscriber(modid = PCReference.MOD_ID, value = Dist.CLIENT)
+public final class CardInteractEvent {
+
+    private CardInteractEvent() {}
 
     @SubscribeEvent
-    @OnlyIn(Dist.CLIENT)
-    public void onLeftClick(InputEvent.MouseButton event) {
-
-        Minecraft mc = Minecraft.getInstance();
-
-        if (mc.screen == null) {
-
-            if (event.getAction() == 1 && event.getButton() == 0) {
-
-                Player player = mc.player;
-
-                if (mc.level != null && player != null) {
-
-                    ItemStack heldStack = player.getMainHandItem();
-
-                    if (heldStack.getItem() instanceof ItemCardCovered card) {
-                        card.flipCard(heldStack, player);
-
-                        ModNetworking.cardInteract("flipinv");
-                        event.setCanceled(true);
-                    }
-                }
-            }
+    public static void onLeftClick(InputEvent.MouseButton.Pre event) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.screen == null && event.getAction() == GLFW.GLFW_PRESS && event.getButton() == GLFW.GLFW_MOUSE_BUTTON_LEFT
+                && minecraft.player != null && minecraft.player.getMainHandItem().getItem() instanceof ItemCardCovered) {
+            ClientPacketDistributor.sendToServer(new PacketInteractCard("flipinv"));
+            event.setCanceled(true);
         }
     }
 }

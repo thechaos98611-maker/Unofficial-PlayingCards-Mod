@@ -6,11 +6,10 @@ import com.ombremoon.playingcards.util.ItemHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import com.ombremoon.playingcards.init.InitEntityTypes;
 import com.ombremoon.playingcards.init.InitItems;
 import com.ombremoon.playingcards.item.ItemPokerChip;
@@ -24,14 +23,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkHooks;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
-import java.util.Optional;
 import java.util.UUID;
 
 public class EntityPokerChip extends EntityStacked {
 
-    private static final EntityDataAccessor<Optional<UUID>> OWNER_UUID = SynchedEntityData.defineId(EntityPokerChip.class, EntityDataSerializers.OPTIONAL_UUID);
+    private static final EntityDataAccessor<String> OWNER_UUID = SynchedEntityData.defineId(EntityPokerChip.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<String> OWNER_NAME = SynchedEntityData.defineId(EntityPokerChip.class, EntityDataSerializers.STRING);
 
     public EntityPokerChip(EntityType<? extends EntityPokerChip> type, Level world) {
@@ -43,19 +42,23 @@ public class EntityPokerChip extends EntityStacked {
 
         createStack();
         addToTop(firstChipID);
-        this.entityData.set(OWNER_UUID, Optional.of(ownerID));
+        this.entityData.set(OWNER_UUID, ownerID.toString());
         this.entityData.set(OWNER_NAME, ownerName);
     }
 
     public UUID getOwnerUUID() {
-        return (this.entityData.get(OWNER_UUID).isPresent()) ? this.entityData.get(OWNER_UUID).get() : null;
+        try {
+            return UUID.fromString(this.entityData.get(OWNER_UUID));
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
     private void takeChip(Player player) {
 
         byte chipID = getTopStackID();
 
-        if (!level().isClientSide) spawnChip(player, ItemPokerChip.getPokerChip(chipID), 1);
+        if (!level().isClientSide()) spawnChip(player, ItemPokerChip.getPokerChip(chipID), 1);
 
         removeFromTop();
 
@@ -65,7 +68,7 @@ public class EntityPokerChip extends EntityStacked {
     }
 
     @Override
-    public InteractionResult interact(Player pPlayer, InteractionHand pHand) {
+    public InteractionResult interact(Player pPlayer, InteractionHand pHand, Vec3 pLocation) {
 
         ItemStack stack = pPlayer.getItemInHand(pHand);
 
@@ -73,9 +76,9 @@ public class EntityPokerChip extends EntityStacked {
 
             CompoundTag nbt = ItemHelper.getNBT(stack);
 
-            if (nbt.hasUUID("OwnerID")) {
+            if (ItemHelper.hasUUID(nbt, "OwnerID")) {
 
-                UUID ownerID = nbt.getUUID("OwnerID");
+                UUID ownerID = ItemHelper.getUUID(nbt, "OwnerID");
 
                 if (ownerID.equals(getOwnerUUID())) {
 
@@ -102,12 +105,12 @@ public class EntityPokerChip extends EntityStacked {
                         }
 
                         else {
-                            if (level().isClientSide) ChatHelper.printModMessage(ChatFormatting.RED, Component.translatable("message.stack_full"), pPlayer);
+                            if (level().isClientSide()) ChatHelper.printModMessage(ChatFormatting.RED, Component.translatable("message.stack_full"), pPlayer);
                         }
                     }
                 }
 
-                else if (level().isClientSide) ChatHelper.printModMessage(ChatFormatting.RED, Component.translatable("message.stack_owner_error"), pPlayer);
+                else if (level().isClientSide()) ChatHelper.printModMessage(ChatFormatting.RED, Component.translatable("message.stack_owner_error"), pPlayer);
             }
         }
 
@@ -117,7 +120,7 @@ public class EntityPokerChip extends EntityStacked {
     }
 
     @Override
-    public boolean hurt(DamageSource pSource, float pAmount) {
+    public boolean hurtServer(ServerLevel level, DamageSource pSource, float pAmount) {
 
         if (pSource.getDirectEntity() instanceof Player player) {
 
@@ -127,7 +130,7 @@ public class EntityPokerChip extends EntityStacked {
             int greenAmount = 0;
             int blackAmount = 0;
 
-            for (int i = 0; i < this.entityData.get(STACK).length; i++) {
+            for (int i = 0; i < this.entityData.get(STACK).length(); i++) {
 
                 byte chipID = getIDAt(i);
 
@@ -154,11 +157,12 @@ public class EntityPokerChip extends EntityStacked {
 
     private void spawnChip(Player player, Item item, int amount) {
 
-        if (!level().isClientSide) {
+        if (!level().isClientSide()) {
             ItemStack chip = new ItemStack(item, amount);
-            CompoundTag nbt = ItemHelper.getNBT(chip);
-            nbt.putUUID("OwnerID", getOwnerUUID());
-            nbt.putString("OwnerName", this.entityData.get(OWNER_NAME));
+            ItemHelper.updateNBT(chip, nbt -> {
+                ItemHelper.putUUID(nbt, "OwnerID", getOwnerUUID());
+                nbt.putString("OwnerName", this.entityData.get(OWNER_NAME));
+            });
             ItemHelper.spawnStackAtEntity(level(), player, chip);
         }
     }
@@ -175,27 +179,23 @@ public class EntityPokerChip extends EntityStacked {
     }
 
     @Override
-    public void moreData() {
-        this.entityData.define(OWNER_UUID, Optional.empty());
-        this.entityData.define(OWNER_NAME, "");
+    protected void defineAdditionalSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(OWNER_UUID, "");
+        builder.define(OWNER_NAME, "");
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag compoundTag) {
-        super.readAdditionalSaveData(compoundTag);
-        this.entityData.set(OWNER_UUID, Optional.of(compoundTag.getUUID("OwnerID")));
-        this.entityData.set(OWNER_NAME, compoundTag.getString("OwnerName"));
+    protected void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        this.entityData.set(OWNER_UUID, input.getStringOr("OwnerID", ""));
+        this.entityData.set(OWNER_NAME, input.getStringOr("OwnerName", ""));
     }
 
     @Override
-    protected void addAdditionalSaveData(CompoundTag compoundTag) {
-        super.addAdditionalSaveData(compoundTag);
-        compoundTag.putUUID("OwnerID", getOwnerUUID());
-        compoundTag.putString("OwnerName", this.entityData.get(OWNER_NAME));
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
+    protected void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        UUID ownerID = getOwnerUUID();
+        if (ownerID != null) output.putString("OwnerID", ownerID.toString());
+        output.putString("OwnerName", this.entityData.get(OWNER_NAME));
     }
 }

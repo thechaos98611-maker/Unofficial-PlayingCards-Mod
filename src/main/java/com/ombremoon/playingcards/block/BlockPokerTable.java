@@ -6,6 +6,10 @@ import com.ombremoon.playingcards.init.InitTileEntityTypes;
 import com.ombremoon.playingcards.util.Location;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -13,7 +17,10 @@ import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,10 +28,13 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import com.mojang.serialization.MapCodec;
 
 import javax.annotation.Nullable;
 
 public class BlockPokerTable extends BlockContainerBase {
+
+    private static final MapCodec<BlockPokerTable> CODEC = BlockBehaviour.simpleCodec(BlockPokerTable::new);
 
     private static final BooleanProperty NORTH = BooleanProperty.create("north");
     private static final BooleanProperty EAST = BooleanProperty.create("east");
@@ -38,9 +48,19 @@ public class BlockPokerTable extends BlockContainerBase {
 
     private static final VoxelShape AABB = Block.box(0, 0, 0, 16, 15, 16);
 
-    public BlockPokerTable() {
-        super(Block.Properties.of().sound(SoundType.WOOD).strength(1).noCollission());
+    public BlockPokerTable(Identifier id) {
+        this(Block.Properties.of().sound(SoundType.WOOD).strength(1).noCollision()
+                .setId(ResourceKey.create(Registries.BLOCK, id)));
+    }
+
+    private BlockPokerTable(BlockBehaviour.Properties properties) {
+        super(properties);
         this.registerDefaultState(this.getStateDefinition().any().setValue(NORTH, false).setValue(EAST, false).setValue(SOUTH, false).setValue(WEST, false).setValue(NORTHWEST, false).setValue(NORTHEAST, false).setValue(SOUTHWEST, false).setValue(SOUTHEAST, false));
+    }
+
+    @Override
+    protected MapCodec<? extends BlockContainerBase> codec() {
+        return CODEC;
     }
 
     @Override
@@ -58,7 +78,7 @@ public class BlockPokerTable extends BlockContainerBase {
     /**
      * Checks if the Block at the given pos can connect to the Block given by the Direction.
      */
-    private boolean canConnectTo (LevelAccessor world, BlockPos pos, int offX, int offZ) {
+    private boolean canConnectTo (LevelReader world, BlockPos pos, int offX, int offZ) {
         BlockPos otherPos = pos.offset(offX, 0, offZ);
         Block otherBlock = world.getBlockState(otherPos).getBlock();
         return otherBlock instanceof BlockPokerTable;
@@ -73,7 +93,7 @@ public class BlockPokerTable extends BlockContainerBase {
         return getState(pContext.getLevel(), pContext.getClickedPos());
     }
 
-    private BlockState getState (LevelAccessor world, BlockPos pos) {
+    private BlockState getState (LevelReader world, BlockPos pos) {
         boolean north = canConnectTo(world, pos, 0, -1);
         boolean east = canConnectTo(world, pos, 1, 0);
         boolean south = canConnectTo(world, pos, 0, 1);
@@ -88,7 +108,7 @@ public class BlockPokerTable extends BlockContainerBase {
     }
 
     @Override
-    public BlockState updateShape(BlockState pState, Direction pDirection, BlockState pNeighborState, LevelAccessor pLevel, BlockPos pCurrentPos, BlockPos pNeighborPos) {
+    protected BlockState updateShape(BlockState pState, LevelReader pLevel, ScheduledTickAccess pTicks, BlockPos pCurrentPos, Direction pDirection, BlockPos pNeighborPos, BlockState pNeighborState, RandomSource pRandom) {
         return getState(pLevel, pCurrentPos);
     }
 
@@ -109,11 +129,6 @@ public class BlockPokerTable extends BlockContainerBase {
     @Override
     public VoxelShape getCollisionShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
         return AABB;
-    }
-
-    @Override
-    public boolean propagatesSkylightDown(BlockState pState, BlockGetter pLevel, BlockPos pPos) {
-        return true;
     }
 
     @Override

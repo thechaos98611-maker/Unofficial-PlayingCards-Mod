@@ -9,11 +9,10 @@ import com.ombremoon.playingcards.util.ItemHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
@@ -21,8 +20,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkHooks;
 
 public class EntityCardDeck extends EntityStacked {
 
@@ -53,17 +53,15 @@ public class EntityCardDeck extends EntityStacked {
 
     private void createAndFillDeck() {
 
-        Byte[] newStack = new Byte[52];
-
-        for (byte index = 0; index < 52; index++) {
-            newStack[index] = index;
+        StringBuilder newStack = new StringBuilder(52);
+        for (int index = 0; index < 52; index++) {
+            newStack.append((char) index);
         }
-
-        this.entityData.set(STACK, newStack);
+        this.entityData.set(STACK, newStack.toString());
     }
 
     @Override
-    public InteractionResult interact(Player pPlayer, InteractionHand pHand) {
+    public InteractionResult interact(Player pPlayer, InteractionHand pHand, Vec3 pLocation) {
         if (pHand == InteractionHand.MAIN_HAND) {
 
             if (getStackAmount() > 0) {
@@ -73,11 +71,15 @@ public class EntityCardDeck extends EntityStacked {
                 ItemStack card = new ItemStack(InitItems.CARD_COVERED.get());
 
                 card.setDamageValue(cardID);
-                ItemHelper.getNBT(card).putUUID("UUID", getUUID());
-                ItemHelper.getNBT(card).putByte("SkinID", this.entityData.get(SKIN_ID));
-                ItemHelper.getNBT(card).putBoolean("Covered", true);
+                ItemHelper.updateNBT(card, nbt -> {
+                    ItemHelper.putUUID(nbt, "UUID", getUUID());
+                    nbt.putByte("SkinID", this.entityData.get(SKIN_ID));
+                    nbt.putBoolean("Covered", true);
+                    nbt.putInt("CardID", cardID);
+                });
+                ItemHelper.setModelIndex(card, this.entityData.get(SKIN_ID));
 
-                if (!level().isClientSide) {
+                if (!level().isClientSide()) {
                     ItemHelper.spawnStackAtEntity(level(), pPlayer, card);
                 }
 
@@ -86,25 +88,26 @@ public class EntityCardDeck extends EntityStacked {
                 return pPlayer.getMainHandItem().isEmpty() ? InteractionResult.SUCCESS : InteractionResult.FAIL;
             }
 
-            else if (level().isClientSide) ChatHelper.printModMessage(ChatFormatting.RED, Component.translatable("message.stack_empty"), pPlayer);
+            else if (level().isClientSide()) ChatHelper.printModMessage(ChatFormatting.RED, Component.translatable("message.stack_empty"), pPlayer);
         }
 
         return InteractionResult.FAIL;
     }
 
     @Override
-    public boolean hurt(DamageSource pSource, float pAmount) {
+    public boolean hurtServer(ServerLevel level, DamageSource pSource, float pAmount) {
         if (pSource.getDirectEntity() instanceof Player player) {
 
             if (player.isCrouching()) {
                 ItemStack deck = new ItemStack(InitItems.CARD_DECK.get());
-                ItemHelper.getNBT(deck).putByte("SkinID", this.entityData.get(SKIN_ID));
+                ItemHelper.updateNBT(deck, nbt -> nbt.putByte("SkinID", this.entityData.get(SKIN_ID)));
+                ItemHelper.setModelIndex(deck, this.entityData.get(SKIN_ID));
 
                 ItemHelper.spawnStackAtEntity(level(), player, deck);
                 discard();
             } else {
                 shuffleStack();
-                if (level().isClientSide) ChatHelper.printModMessage(ChatFormatting.GREEN, Component.translatable("message.stack_shuffled"), player);
+                if (level().isClientSide()) ChatHelper.printModMessage(ChatFormatting.GREEN, Component.translatable("message.stack_shuffled"), player);
             }
 
             return true;
@@ -114,27 +117,22 @@ public class EntityCardDeck extends EntityStacked {
     }
 
     @Override
-    public void moreData() {
-        this.entityData.define(ROTATION, 0F);
-        this.entityData.define(SKIN_ID, (byte) 0);
+    protected void defineAdditionalSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(ROTATION, 0F);
+        builder.define(SKIN_ID, (byte) 0);
     }
 
     @Override
-    protected void readAdditionalSaveData(CompoundTag compoundTag) {
-        super.readAdditionalSaveData(compoundTag);
-        this.entityData.set(ROTATION, compoundTag.getFloat("Rotation"));
-        this.entityData.set(SKIN_ID, compoundTag.getByte("SkinID"));
+    protected void readAdditionalSaveData(ValueInput input) {
+        super.readAdditionalSaveData(input);
+        this.entityData.set(ROTATION, input.getFloatOr("Rotation", 0F));
+        this.entityData.set(SKIN_ID, input.getByteOr("SkinID", (byte) 0));
     }
 
     @Override
-    protected void addAdditionalSaveData(CompoundTag compoundTag) {
-        super.addAdditionalSaveData(compoundTag);
-        compoundTag.putFloat("Rotation", this.entityData.get(ROTATION));
-        compoundTag.putByte("SkinID", this.entityData.get(SKIN_ID));
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
+    protected void addAdditionalSaveData(ValueOutput output) {
+        super.addAdditionalSaveData(output);
+        output.putFloat("Rotation", this.entityData.get(ROTATION));
+        output.putByte("SkinID", this.entityData.get(SKIN_ID));
     }
 }

@@ -6,44 +6,61 @@ import com.ombremoon.playingcards.entity.EntityCard;
 import com.ombremoon.playingcards.init.InitItems;
 import com.ombremoon.playingcards.util.CardHelper;
 import com.ombremoon.playingcards.util.ItemHelper;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.item.ItemModelResolver;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
-public class RenderEntityCard extends EntityRenderer<EntityCard> {
+public class RenderEntityCard extends EntityRenderer<EntityCard, RenderEntityCard.State> {
 
-    public RenderEntityCard(EntityRendererProvider.Context pContext) {
-        super(pContext);
+    private final ItemModelResolver itemModelResolver;
+
+    public RenderEntityCard(EntityRendererProvider.Context context) {
+        super(context);
+        this.itemModelResolver = Minecraft.getInstance().getItemModelResolver();
     }
 
     @Override
-    public void render(EntityCard pEntity, float pEntityYaw, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBuffer, int pPackedLight) {
-        super.render(pEntity, pEntityYaw, pPartialTick, pPoseStack, pBuffer, pPackedLight);
-
-        ItemStack card = new ItemStack(InitItems.CARD.get());
-
-        card.setDamageValue(pEntity.getTopStackID());
-
-        if (pEntity.isCover()) {
-            card = new ItemStack(InitItems.CARD_COVERED.get());
-            ItemHelper.getNBT(card).putByte("SkinID", pEntity.getSkinID());
-        }
-
-        pPoseStack.pushPose();
-        pPoseStack.mulPose(Axis.YP.rotationDegrees(-pEntity.getRotation() + 180));
-        pPoseStack.scale(1.5F, 1.5F, 1.5F);
-
-        for (byte i = 0; i < pEntity.getStackAmount(); i++) {
-            CardHelper.renderItem(card, pEntity.level(), 0, i * 0.003D, 0, pPoseStack, pBuffer, pPackedLight);
-        }
-
-        pPoseStack.popPose();
+    public State createRenderState() {
+        return new State();
     }
 
     @Override
-    public ResourceLocation getTextureLocation(EntityCard pEntity) {
-        return null;
+    public void extractRenderState(EntityCard entity, State state, float partialTick) {
+        super.extractRenderState(entity, state, partialTick);
+        ItemStack card = new ItemStack(entity.isCover() ? InitItems.CARD_COVERED.get() : InitItems.CARD.get());
+        if (entity.isCover()) {
+            ItemHelper.updateNBT(card, nbt -> nbt.putByte("SkinID", entity.getSkinID()));
+            ItemHelper.setModelIndex(card, entity.getSkinID());
+        } else {
+            ItemHelper.setCardId(card, entity.getTopStackID());
+        }
+        state.stackAmount = entity.getStackAmount();
+        state.rotation = entity.getRotation();
+        itemModelResolver.updateForNonLiving(state.itemState, card, ItemDisplayContext.GROUND, entity);
+    }
+
+    @Override
+    public void submit(State state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState cameraState) {
+        super.submit(state, poseStack, collector, cameraState);
+        poseStack.pushPose();
+        poseStack.mulPose(Axis.YP.rotationDegrees(-state.rotation + 180));
+        poseStack.scale(1.5F, 1.5F, 1.5F);
+        for (int i = 0; i < state.stackAmount; i++) {
+            CardHelper.renderItem(state.itemState, 0, i * 0.003D, 0, poseStack, collector, state.lightCoords, i);
+        }
+        poseStack.popPose();
+    }
+
+    public static class State extends EntityRenderState {
+        private final ItemStackRenderState itemState = new ItemStackRenderState();
+        private int stackAmount;
+        private float rotation;
     }
 }

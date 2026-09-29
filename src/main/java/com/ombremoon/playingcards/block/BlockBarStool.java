@@ -3,6 +3,9 @@ package com.ombremoon.playingcards.block;
 import com.ombremoon.playingcards.entity.EntitySeat;
 import com.ombremoon.playingcards.block.base.BlockBase;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -24,13 +27,14 @@ public class BlockBarStool extends BlockBase {
     public static final IntegerProperty FACING = IntegerProperty.create("facing", 0, 7);
     private static final VoxelShape AABB = Block.box(3, 0, 3, 13, 16, 13);
 
-    public BlockBarStool() {
-        super(Block.Properties.of().sound(SoundType.WOOD).strength(1).noOcclusion());
+    public BlockBarStool(Identifier id) {
+        super(Block.Properties.of().sound(SoundType.WOOD).strength(1).noOcclusion()
+                .setId(ResourceKey.create(Registries.BLOCK, id)));
         this.registerDefaultState(this.getStateDefinition().any().setValue(FACING, 0));
     }
 
     @Override
-    public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
+    protected InteractionResult useWithoutItem(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, BlockHitResult pHit) {
         EntitySeat.createSeat(pLevel, pPos, pPlayer);
         return InteractionResult.SUCCESS;
     }
@@ -66,11 +70,5 @@ public class BlockBarStool extends BlockBase {
     public VoxelShape getCollisionShape(BlockState pState, BlockGetter pLevel, BlockPos pPos, CollisionContext pContext) {
         return AABB;
     }
-
-    @Override
-    public boolean propagatesSkylightDown(BlockState pState, BlockGetter pLevel, BlockPos pPos) {
-        return true;
-    }
-
 
 }

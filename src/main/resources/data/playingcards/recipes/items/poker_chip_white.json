@@ -10,7 +10,7 @@
     }
   ],
   "result": {
-    "item": "playingcards:poker_chip_white",
+    "id": "playingcards:poker_chip_white",
     "count": 16
   }
 }
