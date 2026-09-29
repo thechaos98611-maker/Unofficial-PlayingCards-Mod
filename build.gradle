@@ -103,6 +103,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('jar', Jar).configure {
+    archiveFileName = 'Unofficial-PlayingCards-Mod.jar'
     from('LICENSE-GPL-3.0.txt') {
         into 'META-INF/licenses'
     }
